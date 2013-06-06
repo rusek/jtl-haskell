@@ -1,0 +1,6 @@
+*.hi
+*.o
+*~
+jtli
+jtlt
+JTL/Parser.hs

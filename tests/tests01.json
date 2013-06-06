@@ -1,0 +1,38 @@
+{
+    "label": "Basic tests",
+    "testSets": [{
+        "label": "Arithmetic tests",
+        "tests": [
+            {"assertTrue": "2 == 1 + 1"},
+            {"assertFalse": "6 / 4 == 1"},
+            {"assertTrue": "2 + 3 * 4 == 14"},
+            {"assertTrue": "-17 == 0-17"},
+            {"assertError": "2 / 0"},
+            {"assertError": "2 % 0"},
+            {"assertTrue": "-2 + 3 == 1"},
+            {"assertTrue": "8 % 3 == 2"},
+            {"assertTrue": "3 % 5 == 3"},
+            {"assertTrue": "3 % -5 == 3"},
+            {"assertTrue": "-3 % 5 == -3"},
+            {"assertTrue": "-3 % -5 == -3"}
+        ]
+    },
+    {
+        "label": "Comparison tests",
+        "tests": [
+            {"assertTrue": "false < true"},
+            {"assertFalse": "true < true < true"},
+            {"assertTrue": "null < false < true < 0 < 1 < \"\" < \"a\" < [] < [null] < {} < {\"\": null}"},
+            {"assertFalse": "() > null"},
+            {"assertFalse": "() < null"},
+            {"assertTrue": "() == ()"}
+        ]
+    },
+    {
+        "label": "Transformation tests",
+        "tests": [{
+            "document": {"x": 5},
+            "assertTrue": "x == 5"
+        }]
+    }]
+}
