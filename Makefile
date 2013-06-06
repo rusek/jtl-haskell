@@ -10,4 +10,7 @@ jtli:
 jtlt:
 	ghc --make Tester.hs -o jtlt
 
+test:
+	./jtlt tests/*.json
+
 .PHONY: default jtli jtlt
