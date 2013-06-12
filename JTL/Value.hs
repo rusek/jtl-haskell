@@ -11,12 +11,13 @@ module JTL.Value (
     ValueLike(..)
     ) where
 
+import Data.Bits
+import Data.Char (intToDigit)
 import Data.Fixed (mod')
 import Control.Monad (forM, liftM)
 import Data.Generics (Data)
 import Data.Typeable (Typeable)
 import Prelude hiding (String, concat, mod)
-import qualified Text.JSON as J
 import qualified Data.Map as M
 
 newtype Boolean = Boolean Bool deriving (Eq, Ord, Typeable, Data)
@@ -100,7 +101,18 @@ instance Show Number where
         _ -> s
     
 instance Show String where
-    show (String s) = show s
+    show (String s) = '"' : foldr go "\"" s where
+        go '"' s = '\\':'"':s
+        go '\\' s = '\\':'\\':s
+        go '/' s = '\\':'/':s
+        go '\b' s = '\\':'b':s
+        go '\f' s = '\\':'f':s
+        go '\n' s = '\\':'n':s
+        go '\r' s = '\\':'r':s
+        go '\t' s = '\\':'t':s
+        go c s = let cc = fromEnum c in
+            if cc < 32 then '\\':'u':(intToDigit $ cc `shiftR` 1):(intToDigit $ cc .&. 0xF):s
+            else c:s
 
 instance Show Array where
     show (Array a) = "[" ++ join ", " (map show a) ++ "]"
@@ -109,30 +121,9 @@ instance Show Object where
     show (Object o) = "{" ++ join ", " (map go $ M.toAscList o) ++ "}" where
         go (k, v) = show k ++ ": " ++ show v
 
-readJSON' J.JSNull = VNull
-readJSON' (J.JSBool b) = VBoolean $ Boolean b
-readJSON' (J.JSRational _ r) = VNumber $ Number r
-readJSON' (J.JSString s) = VString $ String $ J.fromJSString s
-readJSON' (J.JSArray a) = VArray $ Array $ map readJSON' a
-readJSON' (J.JSObject o) = VObject $ Object $ M.fromList $ map go $ J.fromJSObject o where
-    go (s, v) = (String s, readJSON' v)
-
-instance J.JSON Value where
-    readJSON v = J.Ok $ readJSON' v
-    
-    showJSON VNull = J.JSNull
-    showJSON (VBoolean (Boolean b)) = J.JSBool b
-    showJSON (VNumber (Number n)) = J.JSRational False n
-    showJSON (VString (String s)) = J.JSString $ J.toJSString s
-    showJSON (VArray (Array a)) = J.JSArray $ map J.showJSON a
-    showJSON (VObject (Object o)) = J.JSObject $ J.toJSObject $ map go $ M.toAscList o where
-        go (String s, v) = (s, J.showJSON v)
-
-
 join sep [] = []
 join sep [a] = a
 join sep (a:b:as) = a ++ sep ++ join sep (b:as)
-
 
 class ValueLike a where
     toValue :: a -> Value
@@ -211,7 +202,3 @@ instance ValueLike a => ValueLike (M.Map [Char] a) where
 instance ValueLike Value where
     toValue = id
     tryFromValue = Right
-    
-instance ValueLike J.JSValue where
-    toValue = readJSON'
-    tryFromValue = Right . J.showJSON

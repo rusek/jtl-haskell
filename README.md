@@ -1,11 +1,6 @@
 jtl-haskell
 ===========
 
-Prerequisites
---------------------
-
-`cabal install json`
-
 Interpreter
 --------------------
 

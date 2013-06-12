@@ -13,7 +13,6 @@ import System.IO
 import System.IO.Error
 import System.Environment
 import JTL.IR
-import qualified Text.JSON as J
 import qualified JTL.Env as E
 import qualified JTL.Value as V
 import qualified JTL.Context as C
@@ -74,9 +73,9 @@ loadValueIO path = withFile path ReadMode process `catch` \e ->
     where
         process h = do
         txt <- hGetContents h
-        case J.decode txt :: J.Result V.Value of
-            J.Error msg -> return $ Left msg
-            J.Ok v -> return $ Right v
+        case decode txt of
+            Left msg -> return $ Left msg
+            Right v -> return $ Right v
 
 loadValue :: String -> (V.Value -> Interpreter ()) -> Interpreter ()
 loadValue path act = liftIO (loadValueIO path) >>= \result -> case result of

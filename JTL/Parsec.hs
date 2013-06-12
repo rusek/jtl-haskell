@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
-module JTL.Parsec (lexer, alpha, alphaNum, uint, digit, name, var, string, unumber, white) where
+module JTL.Parsec (lexer, alpha, alphaNum, uint, digit, name, var, string, unumber, white, decode) where
 
 import Data.Bits
 import Data.Char (digitToInt, isControl)
@@ -45,25 +45,25 @@ isLowSurrogate :: Int -> Bool
 isLowSurrogate x = 0xDC00 <= x && x <= 0xDFFF
 
 fromSurrogatePair :: Int -> Int -> Char
-fromSurrogatePair high low = toEnum $ 0x10000 + ((high - 0xd800 `shift` 10) .|. (low - 0xdc00))
+fromSurrogatePair high low = toEnum $ 0x10000 + (((high - 0xd800) `shift` 10) .|. (low - 0xdc00))
 
-stringChar' :: Char -> Parser Char
-stringChar' delim = (char '\\' *> esc) <|> satisfy (\c -> not (isControl c || c == delim)) where
-    esc = '"'  <$ char '"'  <|>
-          '\'' <$ char '\'' <|>
-          '\\' <$ char '\\' <|>
-          '/'  <$ char '/'  <|>
-          '\b' <$ char 'b'  <|>
-          '\f' <$ char 'f'  <|>
-          '\n' <$ char 'n'  <|>
-          '\r' <$ char 'r'  <|>
-          '\t' <$ char 't'  <|>
-          char 'u' *> escUni
+baseStringEsc :: Parser Char
+baseStringEsc =
+    '"'  <$ char '"'  <|>
+    '\\' <$ char '\\' <|>
+    '/'  <$ char '/'  <|>
+    '\b' <$ char 'b'  <|>
+    '\f' <$ char 'f'  <|>
+    '\n' <$ char 'n'  <|>
+    '\r' <$ char 'r'  <|>
+    '\t' <$ char 't'  <|>
+    char 'u' *> escUni
+    where
     escUni = do
         x <- hex4
         if isHighSurrogate x then do
             y <- str "\\u" *> hex4
-            if not $ isLowSurrogate x then
+            if not $ isLowSurrogate y then
                 fail "Expecting low surrogate"
             else
                 return $ fromSurrogatePair x y
@@ -73,11 +73,20 @@ stringChar' delim = (char '\\' *> esc) <|> satisfy (\c -> not (isControl c || c 
             return $ toEnum x
     hex4 = foldl (\x y -> x * 16 + y) 0 <$> count 4 (digitToInt <$> hexDigit)
 
-string' :: Char -> Parser V.String
-string' delim = V.toString <$> between (char delim) (char delim) (many $ stringChar' delim)
+stringEsc :: Parser Char
+stringEsc = '\'' <$ char '\'' <|> baseStringEsc
+
+stringChar' :: Parser Char -> Char -> Parser Char
+stringChar' esc delim = (char '\\' *> esc) <|> satisfy (\c -> not (isControl c || c == delim))
+
+string' :: Parser Char -> Char -> Parser V.String
+string' esc delim = V.toString <$> between (char delim) (char delim) (many $ stringChar' esc delim)
 
 string :: Parser V.String
-string = string' '"' <|> string' '\''
+string = string' stringEsc '"' <|> string' stringEsc '\''
+
+baseString :: Parser V.String
+baseString = string' baseStringEsc '"'
 
 unumber :: Parser V.Number
 unumber = do
@@ -92,10 +101,45 @@ unumber = do
         negE v = 1 % (10 ^ v)
         prepF ds = read ds % (10 ^ length ds)
 
+baseNumber :: Parser V.Number
+baseNumber = (negate <$ char '-' <|> pure id) *> unumber
+
 white :: Parser ()
 white = (space *> spaces) <|>
         (str "/*" >> skipUntil (str "*/")) <|>
         (str "//" >> skipUntil (eof <|> () <$ newline))
+
+baseWs :: Parser ()
+baseWs = skipMany $ oneOf "\x20\x09\x0A\x0D"
+
+baseStruct :: Char -> Char -> Parser a -> Parser [a]
+baseStruct l r p = between (char l) (char r) (baseWs *> ((p <* baseWs) `sepBy` (char ',' >> baseWs)))
+
+baseArray :: Parser V.Array
+baseArray = V.toArray <$> baseStruct '[' ']' baseValue
+
+baseObject :: Parser V.Object
+baseObject = V.toObject <$> baseStruct '{' '}' member where
+    member = do
+        k <- baseString
+        baseWs >> char ':' >> baseWs
+        v <- baseValue
+        return (k, v)
+
+baseValue :: Parser V.Value
+baseValue =
+    V.VNull <$ str "null" <|>
+    V.VBoolean V.false <$ str "false" <|>
+    V.VBoolean V.true <$ str "true" <|>
+    V.VNumber <$> baseNumber <|>
+    V.VString <$> baseString <|>
+    V.VArray <$> baseArray <|>
+    V.VObject <$> baseObject
+
+decode :: V.ValueLike a => String -> Either String a
+decode s = case runParser (baseWs *> baseValue <* baseWs) () "" s of
+    Left e -> Left $ show e
+    Right v -> V.tryFromValue v
 
 refT :: Parser Token
 refT = char '@' *> (var' TNamedVar TIndexedVar <|> return TContextRef)

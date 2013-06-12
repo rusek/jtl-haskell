@@ -7,10 +7,10 @@ import Control.Monad.State.Lazy
 import Data.Char
 import System.Environment
 import System.IO
+import JTL.Parsec (decode)
 import qualified JTL.Context as C
 import qualified JTL.Value as V
 import qualified JTL.Env as E
-import qualified Text.JSON as J
 import qualified JTL.Parser as P
 import qualified JTL.Runner as R
 
@@ -28,9 +28,9 @@ runQuery _ _ = fail "Query must be a string"
 
 processFile :: String -> TestRunner ()
 processFile file = do
-    testSet <- liftIO $ withFile file ReadMode $ \h -> liftIO (hGetContents h) >>= \c -> case J.decode c of
-        J.Ok v -> return v
-        J.Error msg -> fail msg
+    testSet <- liftIO $ withFile file ReadMode $ \h -> liftIO (hGetContents h) >>= \c -> case decode c of
+        Right v -> return v
+        Left msg -> fail msg
     processTestSet 0 testSet E.empty
 
 printStr :: String -> TestRunner ()
