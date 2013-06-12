@@ -116,6 +116,10 @@ Trans : Trans '.' Name { ETrans "members" $1 [EValue $ V.VString $ V.toString $3
       | Trans '[' Expr ']' { ETrans "members" $1 [$3] }
       | Trans '::' ident '(' Exprs ')' { ETrans $3 $1 $5 }
       | Trans '::' ident { ETrans $3 $1 [] }
+      | Trans '::' '[' ']' { ETrans "array" $1 [] }
+      | Trans '::' '[' Expr ']' { ETrans "array" $1 [$4] }
+      | Trans '::' '{' '}' { ETrans "object" $1 [] }
+      | Trans '::' '{' Expr ':' Expr '}' { ETrans "object" $1 [$4, $6] }
       | Naked { $1 }
 
 Naked : Var             { EVar $1 }
