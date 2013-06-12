@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Arrow
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.State.Lazy
@@ -17,7 +18,7 @@ type TestRunner a = StateT Stats IO a
 
 data Stats = Stats { totalTests :: Int, okTests :: Int }
 
-lookupObject k o = V.lookupObjectMember (V.toString k) o
+lookupObject k = V.lookupObjectMember (V.toString k)
 
 runQuery :: V.Value -> E.Env -> TestRunner (Either String [C.Context])
 runQuery (V.VString src) env = case P.parse $ V.fromString src of
@@ -59,7 +60,7 @@ processTestSet depth (V.VObject obj) env = do
 processTestSet _ _ _ = fail "Test set must be an object"
 
 processTest :: V.Value -> E.Env -> TestRunner ()
-processTest (V.VObject obj) env = go (map (\(k, v) -> (V.fromString k, v)) (V.fromObject obj)) >> liftIO (hFlush stdout) where
+processTest (V.VObject obj) env = go (map (first V.fromString) (V.fromObject obj)) >> liftIO (hFlush stdout) where
     go (("assertTrue", q):_) = assertValue q (V.VBoolean V.true)
     go (("assertFalse", q):_) = assertValue q (V.VBoolean V.false)
     go (("assertError", q):_) = runQuery q env' >>= \result -> case result of
@@ -72,7 +73,7 @@ processTest (V.VObject obj) env = go (map (\(k, v) -> (V.fromString k, v)) (V.fr
     
     runJust query cont = runQuery query env' >>= \result -> case result of
         Left msg -> putError query $ "unexpected error" ++ msg
-        Right [] -> putError query $ "no value returned"
+        Right [] -> putError query "no value returned"
         Right [ctx] -> cont ctx
         _ -> putError query "multiple values returned"
     
@@ -102,7 +103,7 @@ setupEnv obj env = setupVariables . setupDocument $ env where
     setupVariable env (k, v) =
         let k' = V.fromString k
             v' = C.fromValue v in
-                if (not $ null k') && all isDigit k' then E.withIndexedVar (read k') v' env
+                if not (null k') && all isDigit k' then E.withIndexedVar (read k') v' env
                 else E.withNamedVar k' v' env
 
 main = unpackState $ do
@@ -112,4 +113,4 @@ main = unpackState $ do
     printStrLn $ "Total tests run: " ++ show (totalTests stats) ++ " (" ++ show (okTests stats) ++ " ok / " ++
                  show (totalTests stats - okTests stats) ++ " errors)"
     
-unpackState m = return . fst =<< runStateT m (Stats { totalTests = 0, okTests = 0 })
+unpackState m = return . fst =<< runStateT m Stats{totalTests = 0, okTests = 0}

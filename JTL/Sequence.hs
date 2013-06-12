@@ -56,7 +56,7 @@ foldSM :: MonadError e m => (a -> b -> m a) -> a -> Sequence e b -> m a
 foldSM f x s = runSequence s (\x' s' -> f x x' >>= \x -> foldSM f x s') (return x) throwError
 
 fold1SM :: MonadError e m => (a -> a -> m a) -> Sequence e a -> m (Maybe a)
-fold1SM f s = runSequence s (\x' s' -> foldSM f x' s' >>= return . Just) (return Nothing) throwError
+fold1SM f s = runSequence s (\x' s' -> liftM Just $ foldSM f x' s') (return Nothing) throwError
 
 mapSM :: MonadError e m => (a -> m b) -> Sequence e a -> m [b]
 mapSM f s = liftM reverse $ foldSM (\ys x -> f x >>= \y -> return (y:ys)) [] s
@@ -81,7 +81,7 @@ takeCont :: Int -> Sequence e a -> ([a] -> b) -> (e -> b) -> b -- TODO pozbyć s
 takeCont n _ cok cerr | n <= 0 = cok []
 takeCont n (Sequence s) cok cerr = s (nonempty (n - 1) []) (cok []) cerr where
     nonempty 0 es e s' = cok $ reverse $ e:es
-    nonempty n es e s' = (runSequence s') (nonempty (n - 1) (e:es)) (cok $ reverse $ e:es) cerr
+    nonempty n es e s' = runSequence s' (nonempty (n - 1) (e:es)) (cok $ reverse $ e:es) cerr
 
 takeSM :: MonadError e m => Int -> Sequence e a -> m [a]
 takeSM n s = takeCont n s return throwError
@@ -105,8 +105,8 @@ instance Functor (Sequence e) where
 instance Monad (Sequence e) where
     return = singletonS
     m >>= k = Sequence go where
-        go nonempty empty error = (runSequence m) mnonempty empty error where
-            mnonempty a m' = (runSequence $ k a `chainS` (m' >>= k)) nonempty empty error
+        go nonempty empty error = runSequence m mnonempty empty error where
+            mnonempty a m' = runSequence (k a `chainS` (m' >>= k)) nonempty empty error
 
 instance MonadPlus (Sequence e) where
     mzero = emptyS

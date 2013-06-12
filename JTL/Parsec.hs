@@ -24,7 +24,7 @@ uint0' :: Parser Integer
 uint0' = foldl (\x y -> 10 * x + toInteger (digitToInt y)) 0 <$> many1 digit
 
 uint' :: Parser Integer
-uint' = (0 <$ char '0' <|> uint0')
+uint' = 0 <$ char '0' <|> uint0'
 
 uint :: Parser Integer
 uint = uint' <* notFollowedBy alpha
@@ -48,7 +48,7 @@ fromSurrogatePair :: Int -> Int -> Char
 fromSurrogatePair high low = toEnum $ 0x10000 + ((high - 0xd800 `shift` 10) .|. (low - 0xdc00))
 
 stringChar' :: Char -> Parser Char
-stringChar' delim = (char '\\' *> esc) <|> (satisfy (\c -> not (isControl c || c == delim))) where
+stringChar' delim = (char '\\' *> esc) <|> satisfy (\c -> not (isControl c || c == delim)) where
     esc = '"'  <$ char '"'  <|>
           '\'' <$ char '\'' <|>
           '\\' <$ char '\\' <|>

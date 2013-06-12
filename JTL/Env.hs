@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import qualified JTL.Value as V
 
 data Env = Env { document :: C.Context, context :: C.Context,
-                 indexedVars :: (M.Map Int C.Context), namedVars :: (M.Map String C.Context)}
+                 indexedVars :: M.Map Int C.Context, namedVars :: M.Map String C.Context}
 
 fromDocument d = Env (C.fromDocument d) (C.fromDocument d) M.empty M.empty
 empty = fromDocument V.VNull

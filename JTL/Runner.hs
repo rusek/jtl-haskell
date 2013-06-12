@@ -152,11 +152,11 @@ runContexts (ETrans "first" src []) = truncateS 1 <$> runContexts src
 runContexts (ETrans "first" src [expr]) = maybeS <$> (runContexts src >>= findSM (`runBoolWith` expr))
 runContexts (ETrans "last" src []) = runFold1S (\x y -> return y) src
 runContexts (ETrans "last" src [expr]) = fmap maybeS $ runContexts src >>= (findSM (`runBoolWith` expr) . reverseS)
-runContexts (ETrans "count" src []) = runList src >>= (\xs -> return $ singletonS $ C.fromValue $ length xs)
+runContexts (ETrans "count" src []) = liftM (singletonS . C.fromValue . length) $ runList src
 runContexts (ETrans "count" src [expr]) = do
     it <- runContexts src
     n <- foldSM (\x y -> runBoolWith y expr >>= \b -> return $ if b then x + 1 else x) (0 :: Int) it
-    return $ singletonS $ C.fromValue $ n
+    return $ singletonS $ C.fromValue n
 runContexts (ETrans "min" src []) = runFold1S (\x y -> return $ if C.getValue y < C.getValue x then y else x) src
 runContexts (ETrans "max" src []) = runFold1S (\x y -> return $ if C.getValue y > C.getValue x then y else x) src
 runContexts (ETrans "sum" src []) = runFoldSValue (\x y -> add x $ C.getValue y) (V.VNumber V.zero) src
@@ -234,7 +234,7 @@ runFold1S :: (C.Context -> C.Context -> Runner C.Context) -> Expr -> Runner Cont
 runFold1S f e = runContexts e >>= fold1SM f >>= liftR maybeS
 
 runFoldSValue :: (V.Value -> C.Context -> Runner V.Value) -> V.Value -> Expr -> Runner ContextSequence -- TODO poprawić
-runFoldSValue f x e = runContexts e >>= foldSM f x >>= return . singletonS . C.fromValue
+runFoldSValue f x e = liftM (singletonS . C.fromValue) $ runContexts e >>= foldSM f x
 
 castMaybeToBool :: Maybe V.Value -> Runner Bool
 castMaybeToBool Nothing = return False

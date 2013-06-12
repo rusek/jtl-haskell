@@ -34,18 +34,18 @@ maybeValue [ctx] = Just $ C.getValue ctx
 
 justValue [ctx] = C.getValue ctx
 
-freeIndexedVars (EBinOp _ left right) = S.union (freeIndexedVars left) (freeIndexedVars right)
+freeIndexedVars (EBinOp _ left right) = freeIndexedVars left `S.union` freeIndexedVars right
 freeIndexedVars (EUnOp _ expr) = freeIndexedVars expr
-freeIndexedVars (ECmpOp expr rights) = S.union (freeIndexedVars expr) $ freeIndexedVarsL $ map snd rights
+freeIndexedVars (ECmpOp expr rights) = freeIndexedVars expr `S.union` freeIndexedVarsL $ map snd rights
 freeIndexedVars (EVar (VIndexed i)) = S.singleton i
 freeIndexedVars EContext = S.empty
 freeIndexedVars EDocument = S.empty
-freeIndexedVars (ETrans _ src args) = S.union (freeIndexedVars src) $ freeIndexedVarsL args
+freeIndexedVars (ETrans _ src args) = freeIndexedVars src `S.union` freeIndexedVarsL args
 freeIndexedVars (ECall _ args) = freeIndexedVarsL args
 freeIndexedVars (EArray members) = freeIndexedVarsL members
 freeIndexedVars (EObject members) = S.unions $ map (\(k, v) -> S.union (freeIndexedVars k) (freeIndexedVars v)) members
 freeIndexedVars (EValue _) = S.empty
-freeIndexedVars (ELet (VIndexed i) e1 e2) = S.union (freeIndexedVars e1) (S.delete i $ freeIndexedVars e2)
+freeIndexedVars (ELet (VIndexed i) e1 e2) = freeIndexedVars e1 `S.union` S.delete i (freeIndexedVars e2)
 freeIndexedVars (EIf e1 e2 e3) = freeIndexedVars e1 `S.union` freeIndexedVars e2 `S.union` freeIndexedVars e3
 freeIndexedVars (ESequence es) = freeIndexedVarsL es
 

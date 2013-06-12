@@ -12,7 +12,7 @@ module JTL.Value (
     ) where
 
 import Data.Fixed (mod')
-import Control.Monad (forM)
+import Control.Monad (forM, liftM)
 import Data.Generics (Data)
 import Data.Typeable (Typeable)
 import Prelude hiding (String, concat, mod)
@@ -34,27 +34,28 @@ data Value =
     | VObject Object
     deriving (Eq, Ord, Typeable, Data)
 
-toBoolean b = Boolean b
+toBoolean = Boolean
 fromBoolean (Boolean b) = b
 
 true = Boolean True
 false = Boolean False
 
-toNumber r = Number $ toRational r
+toNumber :: Real a => a -> Number
+toNumber = Number . toRational
 fromNumber (Number r) = r
 
-zero = Number $ fromIntegral 0
-one = Number $ fromIntegral 1
+zero = Number 0
+one = Number 1
 
-toString s = String s
+toString = String
 fromString (String s) = s
 
 epsilon = String ""
 
-toArray a = Array a
+toArray = Array
 fromArray (Array a) = a
 
-toObject o = Object $ M.fromList o
+toObject = Object . M.fromList
 fromObject (Object o) = M.toAscList o
 
 lookupObjectMember k (Object o) = M.lookup k o
@@ -94,7 +95,7 @@ instance Show Boolean where
     show (Boolean True) = "true"
 
 instance Show Number where
-    show (Number n) = let s = show ((fromRational n) :: Double) in case reverse s of
+    show (Number n) = let s = show (fromRational n :: Double) in case reverse s of
         '0':'.':s' -> reverse s'
         _ -> s
     
@@ -102,11 +103,11 @@ instance Show String where
     show (String s) = show s
 
 instance Show Array where
-    show (Array a) = "[" ++ (join ", " $ map show a) ++ "]"
+    show (Array a) = "[" ++ join ", " (map show a) ++ "]"
 
 instance Show Object where
-    show (Object o) = "{" ++ (join ", " $ map go $ M.toAscList o) ++ "}" where
-        go (k, v) = (show k) ++ ": " ++ (show v)
+    show (Object o) = "{" ++ join ", " (map go $ M.toAscList o) ++ "}" where
+        go (k, v) = show k ++ ": " ++ show v
 
 readJSON' J.JSNull = VNull
 readJSON' (J.JSBool b) = VBoolean $ Boolean b
@@ -190,7 +191,7 @@ instance ValueLike a => ValueLike (Maybe a) where
     toValue Nothing = VNull
     toValue (Just x) = toValue x
     tryFromValue VNull = Right Nothing
-    tryFromValue x = tryFromValue x >>= return . Just
+    tryFromValue x = liftM Just $ tryFromValue x
 
 instance ValueLike a => ValueLike [a] where
     toValue x = VArray $ toArray $ map toValue x
