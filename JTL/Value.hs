@@ -141,25 +141,50 @@ class ValueLike a where
         Left msg -> error msg
         Right v' -> v'
 
+instance ValueLike Boolean where
+    toValue = VBoolean
+    tryFromValue (VBoolean b) = Right b
+    tryFromValue _ = Left "Expecting boolean"
+
+instance ValueLike Number where
+    toValue = VNumber
+    tryFromValue (VNumber n) = Right n
+    tryFromValue _ = Left "Expecting number"
+
+instance ValueLike String where
+    toValue = VString
+    tryFromValue (VString s) = Right s
+    tryFromValue _ = Left "Expecting string"
+
+instance ValueLike Array where
+    toValue = VArray
+    tryFromValue (VArray a) = Right a
+    tryFromValue _ = Left "Expecting array" 
+
+instance ValueLike Object where
+    toValue = VObject
+    tryFromValue (VObject o) = Right o
+    tryFromValue _ = Left "Expecting object" 
+
 instance ValueLike Bool where
     toValue = VBoolean . toBoolean
     tryFromValue (VBoolean b) = Right $ fromBoolean b
-    tryFromValue _ = Left "Expected boolean"
+    tryFromValue _ = Left "Expecting boolean"
 
 instance ValueLike Int where
     toValue i = VNumber $ toNumber i
     tryFromValue (VNumber n) = Right $ floor $ fromNumber n
-    tryFromValue _ = Left "Expected number"
+    tryFromValue _ = Left "Expecting number"
 
 instance ValueLike Integer where
     toValue i = VNumber $ toNumber i
     tryFromValue (VNumber n) = Right $ floor $ fromNumber n
-    tryFromValue _ = Left "Expected number"
+    tryFromValue _ = Left "Expecting number"
 
 instance ValueLike [Char] where
     toValue = VString . toString
     tryFromValue (VString x) = Right $ fromString x
-    tryFromValue _ = Left "Expected string"
+    tryFromValue _ = Left "Expecting string"
 
 instance ValueLike a => ValueLike (Maybe a) where
     toValue Nothing = VNull
@@ -170,7 +195,7 @@ instance ValueLike a => ValueLike (Maybe a) where
 instance ValueLike a => ValueLike [a] where
     toValue x = VArray $ toArray $ map toValue x
     tryFromValue (VArray a) = mapM tryFromValue $ fromArray a
-    tryFromValue _ = Left "Expected array"
+    tryFromValue _ = Left "Expecting array"
 
 instance ValueLike a => ValueLike (M.Map [Char] a) where
     toValue x = VObject $ toObject $ map go $ M.toAscList x where
@@ -180,7 +205,7 @@ instance ValueLike a => ValueLike (M.Map [Char] a) where
             v' <- tryFromValue v
             return (fromString k, v')
         return $ M.fromList o'
-    tryFromValue _ = Left "Expected object"
+    tryFromValue _ = Left "Expecting object"
 
 instance ValueLike Value where
     toValue = id

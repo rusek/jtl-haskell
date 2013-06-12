@@ -10,6 +10,7 @@ import Control.Monad.State.Strict hiding (join)
 import Control.Exception hiding (catch)
 import Control.Applicative hiding ((<|>), many)
 import System.IO
+import System.IO.Error
 import System.Environment
 import JTL.IR
 import qualified Text.JSON as J
@@ -67,8 +68,11 @@ evaluateExpr src act = parseExpr src $ \expr -> get >>= \env -> case R.evaluate 
     Left msg -> outputStrLn msg
 
 loadValueIO :: String -> IO (Either String V.Value)
-loadValueIO path =
-    withFile path ReadMode $ \h -> do
+loadValueIO path = withFile path ReadMode process `catch` \e ->
+    if isDoesNotExistError e then return $ Left "Could not open file"
+    else ioError e
+    where
+        process h = do
         txt <- hGetContents h
         case J.decode txt :: J.Result V.Value of
             J.Error msg -> return $ Left msg

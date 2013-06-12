@@ -4,7 +4,7 @@
 module JTL.Sequence (
     Sequence, Fail(..),
     emptyS, singletonS, listS, maybeS, failS, chainS, joinS, foldSM, fold1SM, filterS, pickS, takeSM, unwrapSM,
-    truncateS, findSM, searchSM, reverseS
+    truncateS, findSM, searchSM, reverseS, mapSM
     ) where
 
 import Control.Monad
@@ -58,6 +58,9 @@ foldSM f x s = runSequence s (\x' s' -> f x x' >>= \x -> foldSM f x s') (return 
 fold1SM :: MonadError e m => (a -> a -> m a) -> Sequence e a -> m (Maybe a)
 fold1SM f s = runSequence s (\x' s' -> foldSM f x' s' >>= return . Just) (return Nothing) throwError
 
+mapSM :: MonadError e m => (a -> m b) -> Sequence e a -> m [b]
+mapSM f s = liftM reverse $ foldSM (\ys x -> f x >>= \y -> return (y:ys)) [] s
+
 findSM :: MonadError e m => (a -> m Bool) -> Sequence e a -> m (Maybe a)
 findSM f s = runSequence s (\x s' -> f x >>= \b -> if b then return $ Just x else findSM f s')
     (return Nothing) throwError
@@ -95,6 +98,9 @@ truncateS n s = Sequence $ \nonempty empty error -> runSequence s
 unwrapSM :: MonadError e m => Sequence e a -> m [a]
 unwrapSM s = go [] s where
     go xs s = runSequence s (\x -> go $ x:xs) (return $ reverse xs) throwError
+
+instance Functor (Sequence e) where
+    fmap f s = Sequence $ \nonempty empty error -> runSequence s (\x s' -> nonempty (f x) (fmap f s')) empty error
 
 instance Monad (Sequence e) where
     return = singletonS

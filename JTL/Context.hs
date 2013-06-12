@@ -6,7 +6,7 @@ import qualified JTL.Value as V
 
 data Context = Context { getValue :: V.Value, lookupKey :: Maybe V.Value } deriving Show
 
-fromValue v = Context v Nothing
+fromValue v = Context (V.toValue v) Nothing
 fromDocument v = Context v Nothing
 withKey k (Context v _) = Context v $ Just k
 withValue v (Context _ k) = Context v k
