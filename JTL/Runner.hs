@@ -60,24 +60,16 @@ makeComp1 f = do
     env <- ask
     return $ \x -> (runRunner $ f x) env
 
-makeComp2 :: (a -> b -> Runner c) -> Runner (a -> b -> Comp c)
-makeComp2 f = do
-    env <- ask
-    return $ \x y -> (runRunner $ f x y) env
-
 makeSequence1 :: (a -> Runner ContextSequence) -> Runner (a -> ContextSequence)
 makeSequence1 f = do
     env <- ask
     return $ \x -> failS $ runRunner (f x) env
 
-makeSequenceMaybe1 :: (a -> Runner (Maybe C.Context)) -> Runner (a -> ContextSequence)
-makeSequenceMaybe1 = undefined
-
 membersS :: ContextSequence -> ContextSequence
 membersS = (=<<) (\ctx -> listS $ map ((flip $ uncurry C.withMember) ctx) $ V.members $ C.getValue ctx)
 
 pickSM :: ContextSequence -> (C.Context -> Runner Bool) -> Runner ContextSequence
-pickSM s f = makeComp1 f >>= \f' -> return $ f' `filterS` s
+pickSM s f = liftM (`filterS` s) $ makeComp1 f
 
 runContext :: Expr -> Runner (Maybe C.Context)
 runContext (EValue v) = return $ Just $ C.fromValue v
@@ -143,8 +135,8 @@ runContexts :: Expr -> Runner ContextSequence
 runContexts (ESequence es) = joinS <$> mapM runContexts es
 runContexts (ETrans "members" src []) = membersS <$> runContexts src
 runContexts (ETrans "members" src [expr]) = do
-    it <- runContexts src
-    pickSM (membersS it) $ \x -> runValueWith x expr >>= \x' -> case x' of
+    s <- runContexts src
+    pickSM (membersS s) $ \x -> runValueWith x expr >>= \x' -> case x' of
         Just (V.VString _) -> return $ x' == C.lookupKey x
         Just (V.VNumber _) -> return $ x' == C.lookupKey x
         _ -> castMaybeToBool x'
@@ -153,17 +145,16 @@ runContexts (ETrans "first" src [expr]) = maybeS <$> (runContexts src >>= findSM
 runContexts (ETrans "last" src []) = runFold1S (\x y -> return y) src
 runContexts (ETrans "last" src [expr]) = fmap maybeS $ runContexts src >>= (findSM (`runBoolWith` expr) . reverseS)
 runContexts (ETrans "count" src []) = liftM (singletonS . C.fromValue . length) $ runList src
-runContexts (ETrans "count" src [expr]) = do
-    it <- runContexts src
-    n <- foldSM (\x y -> runBoolWith y expr >>= \b -> return $ if b then x + 1 else x) (0 :: Int) it
-    return $ singletonS $ C.fromValue n
+runContexts (ETrans "count" src [expr]) = liftM (singletonS . C.fromValue) $
+    runContexts src >>= foldSM (\x y -> runBoolWith y expr >>= \b -> return $ if b then x + 1 else x) (0 :: Int)
 runContexts (ETrans "min" src []) = runFold1S (\x y -> return $ if C.getValue y < C.getValue x then y else x) src
 runContexts (ETrans "max" src []) = runFold1S (\x y -> return $ if C.getValue y > C.getValue x then y else x) src
-runContexts (ETrans "sum" src []) = runFoldSValue (\x y -> add x $ C.getValue y) (V.VNumber V.zero) src
+runContexts (ETrans "sum" src []) = liftM (singletonS . C.fromValue) $
+    runContexts src >>= foldSM add (V.VNumber V.zero) . fmap C.getValue
 runContexts (ETrans "avg" src []) = do
-    it <- runContexts src
+    s <- runContexts src
     (sum, count) <- foldSM (\(sum, count) ctx -> add sum ctx >>= \sum' -> return (sum', count + 1))
-        (V.VNumber V.zero, 0 :: Int) (fmap C.getValue it)
+        (V.VNumber V.zero, 0 :: Int) (fmap C.getValue s)
     avg <- if count == 0 then return $ V.VNumber V.zero else divide sum (V.VNumber $ V.toNumber count)
     return . singletonS . C.fromValue $ avg
 runContexts (ETrans "array" src []) = runList src >>= \xs -> return $ singletonS $ C.fromValue $ map C.getValue xs
@@ -188,7 +179,6 @@ runContexts (ETrans "object" src [expr]) = do
 runContexts (ETrans "object" src [key, value]) = do
     members <- runContexts src >>= mapSM (`runObjectMemberWith` (key, value))
     return $ singletonS $ C.fromValue $ V.toObject $ catMaybes members
-runContexts (ETrans "select" src args) = error "Not implemented yet"
 runContexts (ETrans "reverse" src []) = reverseS <$> runContexts src
 
 runContexts (ETrans "filter" src [expr]) = runContexts src >>= (`pickSM` (`runBoolWith` expr))
@@ -232,9 +222,6 @@ runObjectMemberWith ctx = local (E.withContext ctx) . runObjectMember
 
 runFold1S :: (C.Context -> C.Context -> Runner C.Context) -> Expr -> Runner ContextSequence -- TODO poprawić
 runFold1S f e = runContexts e >>= fold1SM f >>= liftR maybeS
-
-runFoldSValue :: (V.Value -> C.Context -> Runner V.Value) -> V.Value -> Expr -> Runner ContextSequence -- TODO poprawić
-runFoldSValue f x e = liftM (singletonS . C.fromValue) $ runContexts e >>= foldSM f x
 
 castMaybeToBool :: Maybe V.Value -> Runner Bool
 castMaybeToBool Nothing = return False

@@ -1,9 +1,8 @@
-{-# LANGUAGE ExplicitForAll, RankNTypes, TypeSynonymInstances, MultiParamTypeClasses, FlexibleInstances,
-             FunctionalDependencies #-}
+{-# LANGUAGE ExplicitForAll, RankNTypes, MultiParamTypeClasses, FlexibleInstances, FunctionalDependencies #-}
 
 module JTL.Sequence (
     Sequence, Fail(..),
-    emptyS, singletonS, listS, maybeS, failS, chainS, joinS, foldSM, fold1SM, filterS, pickS, takeSM, unwrapSM,
+    emptyS, singletonS, listS, maybeS, errorS, failS, chainS, joinS, foldSM, fold1SM, filterS, pickS, takeSM, unwrapSM,
     truncateS, findSM, searchSM, reverseS, mapSM
     ) where
 
@@ -77,23 +76,23 @@ filterS f s = Sequence $ go s where
 pickS :: Fail e r => Sequence e a -> (a -> r Bool) -> Sequence e a
 pickS = flip filterS
 
-takeCont :: Int -> Sequence e a -> ([a] -> b) -> (e -> b) -> b -- TODO pozbyć się tego
-takeCont n _ cok cerr | n <= 0 = cok []
-takeCont n (Sequence s) cok cerr = s (nonempty (n - 1) []) (cok []) cerr where
-    nonempty 0 es e s' = cok $ reverse $ e:es
-    nonempty n es e s' = runSequence s' (nonempty (n - 1) (e:es)) (cok $ reverse $ e:es) cerr
-
 takeSM :: MonadError e m => Int -> Sequence e a -> m [a]
-takeSM n s = takeCont n s return throwError
+takeSM n s
+    | n <= 0 = return []
+    | otherwise = go n [] s
+    where
+    go 0 xs s = return $ reverse xs
+    go n xs s = runSequence s (\x -> go (n - 1) (x:xs)) (return $ reverse xs) throwError
 
 reverseS :: Sequence e a -> Sequence e a
 reverseS s = go [] s where
     go xs s = runSequence s (\x -> go (x:xs)) (listS xs) errorS
 
 truncateS :: Int -> Sequence e a -> Sequence e a
-truncateS n _ | n <= 0 = emptyS
-truncateS n s = Sequence $ \nonempty empty error -> runSequence s
-    (\x s' -> nonempty x $ truncateS (n - 1) s') empty error
+truncateS n s
+    | n <= 0 = emptyS
+    | otherwise = Sequence $ \nonempty empty error -> runSequence s
+        (\x s' -> nonempty x $ truncateS (n - 1) s') empty error
 
 unwrapSM :: MonadError e m => Sequence e a -> m [a]
 unwrapSM s = go [] s where
