@@ -9,6 +9,8 @@ data Token =
     | TSlash
     | TPercent
     | TDoubleColon
+    | TDoubleBar
+    | TDoubleAmp
     | TEqual
     | TNotEqual
     | TLess
@@ -47,6 +49,15 @@ data Token =
     | TIndexedVar Int
 
 instance Show Token where
+    show TIf = "if"
+    show TIn = "in"
+    show TLet = "let"
+    show (TIdent s) = s
+    show TQuestMark = "?"
+    show TExclMark = "!"
+    show TElse = "else"
+    show TThen = "then"
+    show TAssign = "="
     show TTrue = "true"
     show TFalse = "false"
     show TNull = "null"
@@ -66,6 +77,8 @@ instance Show Token where
     show TNot = "not"
     show TColon = ":"
     show TDoubleColon = "::"
+    show TDoubleAmp = "&&"
+    show TDoubleBar = "||"
     show TComma = ","
     show TDot = "."
     show TLeftBrace = "{"

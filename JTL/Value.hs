@@ -5,8 +5,8 @@ module JTL.Value (
     toBoolean, fromBoolean, true, false,
     toNumber, fromNumber, zero, one, mod,
     toString, fromString, epsilon, concat,
-    toArray, fromArray,
-    toObject, fromObject, lookupObjectMember,
+    toArray, fromArray, arraySize,
+    toObject, fromObject, lookupObjectMember, objectSize,
     members,
     ValueLike(..)
     ) where
@@ -18,6 +18,7 @@ import Control.Monad (forM, liftM)
 import Data.Generics (Data)
 import Data.Typeable (Typeable)
 import Prelude hiding (String, concat, mod)
+import JTL.Utils (join)
 import qualified Data.Map as M
 
 newtype Boolean = Boolean Bool deriving (Eq, Ord, Typeable, Data)
@@ -55,9 +56,11 @@ epsilon = String ""
 
 toArray = Array
 fromArray (Array a) = a
+arraySize = length . fromArray
 
 toObject = Object . M.fromList
 fromObject (Object o) = M.toAscList o
+objectSize (Object o) = M.size o
 
 lookupObjectMember k (Object o) = M.lookup k o
 
@@ -120,10 +123,6 @@ instance Show Array where
 instance Show Object where
     show (Object o) = "{" ++ join ", " (map go $ M.toAscList o) ++ "}" where
         go (k, v) = show k ++ ": " ++ show v
-
-join sep [] = []
-join sep [a] = a
-join sep (a:b:as) = a ++ sep ++ join sep (b:as)
 
 class ValueLike a where
     toValue :: a -> Value

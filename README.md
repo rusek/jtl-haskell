@@ -1,6 +1,12 @@
 jtl-haskell
 ===========
 
+Prerequisites
+--------------------
+
+`cabal install haskeline`
+
+
 Interpreter
 --------------------
 

@@ -165,6 +165,8 @@ symbolT = TLessEqual    <$ str "<=" <|>
           TEqual        <$ str "==" <|>
           TNotEqual     <$ str "!=" <|>
           TDoubleColon  <$ str "::" <|>
+          TDoubleBar    <$ str "||" <|>
+          TDoubleAmp    <$ str "&&" <|>
           TPlus         <$ char '+' <|>
           TMinus        <$ char '-' <|>
           TStar         <$ char '*' <|>

@@ -4,7 +4,6 @@ import Control.Monad (replicateM)
 import qualified Data.Set as S
 import JTL.IR ( Expr(..), Var(..) )
 import JTL.Parser
-import JTL.ParserMonad
 import JTL.Runner
 import qualified JTL.Context as C
 import qualified JTL.Value as V
@@ -36,7 +35,7 @@ justValue [ctx] = C.getValue ctx
 
 freeIndexedVars (EBinOp _ left right) = freeIndexedVars left `S.union` freeIndexedVars right
 freeIndexedVars (EUnOp _ expr) = freeIndexedVars expr
-freeIndexedVars (ECmpOp expr rights) = freeIndexedVars expr `S.union` freeIndexedVarsL $ map snd rights
+freeIndexedVars (ECmpOp expr rights) = freeIndexedVars expr `S.union` freeIndexedVarsL (map snd rights)
 freeIndexedVars (EVar (VIndexed i)) = S.singleton i
 freeIndexedVars EContext = S.empty
 freeIndexedVars EDocument = S.empty
@@ -56,22 +55,25 @@ indexedVarCount e = let iv = freeIndexedVars e in if S.null iv then 0 else S.fin
 expr :: QQ.QuasiQuoter
 expr = QQ.QuasiQuoter { quoteExp = quoteExpr, quotePat = undefined, quoteDec = undefined, quoteType = undefined }
 
-quoteExpr s = case runParser parser $ toLexerInput s of
-    Ok e -> do
-        -- mkNameG_d
-        let runTHName = TS.mkNameG_v "main" "JTL.TH" "runTH"
-        let fromInName = TS.mkNameG_v "main" "JTL.TH" "fromIn"
---        let fromInName = TS.mkName "JTL.TH.fromIn"
---        let runTHName = TS.mkName "JTL.TH.runTH"
+extractName (TS.ConE n) = n
+extractName (TS.AppE e _) = extractName e
+
+quoteExpr' s = case parse s of
+    Right e -> do
         exp <- dataToExpQ (const Nothing) e
-        
---        let (TS.AppE (TS.ConE (TS.Name coto (TS.NameG TS.DataName _ _))) _) = exp
---        fail $ TS.occString coto
+        let TS.Name _ (TS.NameG _ pkgName _) = extractName exp
+            pkg = TS.pkgString pkgName
+            runTHName = TS.mkNameG_v pkg "JTL.TH" "runTH"
+            fromInName = TS.mkNameG_v pkg "JTL.TH" "fromIn"
         varNames <- replicateM (indexedVarCount e) $ TS.newName "a"
         return $ TS.LamE
             (map TS.VarP varNames)
             (TS.AppE 
                 (TS.AppE (TS.VarE runTHName) exp)
                 (TS.ListE $ map (TS.AppE (TS.VarE fromInName). TS.VarE) varNames))
-    Err _ msg -> error msg
+    Left msg -> fail msg
 
+quoteExpr s = do
+    loc <- TS.location
+    let (line, col) = TS.loc_start loc
+    quoteExpr' $ replicate (line - 1) '\n' ++ replicate (col - 1) ' ' ++ s

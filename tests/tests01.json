@@ -1,7 +1,7 @@
 {
     "label": "Basic tests",
     "testSets": [{
-        "label": "Arithmetic tests",
+        "label": "Numeric tests",
         "tests": [
             {"assertTrue": "2 == 1 + 1"},
             {"assertFalse": "6 / 4 == 1"},
@@ -18,6 +18,14 @@
         ]
     },
     {
+        "label": "String tests",
+        "tests": [
+            {"assertTrue": "'a' + 'b' == 'ab'"},
+            {"assertTrue": "'a' ? true : false"},
+            {"assertFalse": "'' ? true : false"}
+        ]
+    },
+    {
         "label": "Comparison tests",
         "tests": [
             {"assertTrue": "false < true"},
@@ -25,7 +33,24 @@
             {"assertTrue": "null < false < true < 0 < 1 < \"\" < \"a\" < [] < [null] < {} < {\"\": null}"},
             {"assertFalse": "() > null"},
             {"assertFalse": "() < null"},
-            {"assertTrue": "() == ()"}
+            {"assertTrue": "() == ()"},
+            {"assertFalse": "() != ()"},
+            {"assertFalse": "() < ()"},
+            {"assertTrue": "() <= ()"},
+            {"assertTrue": "[1, 10] <= [2]"},
+            {"assertTrue": "{} < {'a': 1}"},
+            {"assertTrue": "{'a': 5, 'c': 6} < {'b': 7}"}
+        ]
+    },
+    {
+        "label": "Function tests",
+        "tests": [
+            {"assertTrue": "value() == null"},
+            {"document": 5, "assertTrue": "value() == 5"},
+            
+            {"assertTrue": "key() == ()"},
+            {"assertTrue": "[false, false, false].*::[key()] == [0, 1, 2]"},
+            {"assertTrue": "{null: 0, false: 0, 12: 0, 'a': 0}.*::[key()] == ['12', 'a', 'false', 'null']"}
         ]
     },
     {
@@ -33,6 +58,43 @@
         "tests": [{
             "document": {"x": 5},
             "assertTrue": "x == 5"
-        }]
+        },
+        {"assertTrue": "[1, 2].*::[] == [1, 2]"},
+        {"assertTrue": "(1, 2, 3)::[] == [1, 2, 3]"},
+        {"assertTrue": "(1, 2, 3)::reverse::[] == [3, 2, 1]"},
+        {"assertTrue": "{'x': [1, 2, 3]}.x[@ != 2]::[] == [1, 3]"},
+        {"assertTrue": "({'a': 'a', 'b': 1, 'c': true}, [0, 1, 0])[@]::[] == ['a', true, 0, 1]"},
+        {"assertTrue": "{'b': 1, 'a': 2, 'd': 3, 'c': 4}.*::[] == [2, 1, 4, 3]"},
+        {"assertTrue": "[-1, 2, -3].*::map(-@)::[] == [1, -2, 3]"},
+        {"assertTrue": "[-1, 2, -3].*::map(@ < 0 ? -@ : ())::[] == [1, 3]"},
+        {"assertError": "1::map((2, 3))"},
+        {"assertTrue": "['false', 0, true].*::filter(@)::[] == ['false', true]"},
+        {"assertTrue": "[1, 2, 3].*::[@*2] == [2, 4, 6]"},
+        {"assertTrue": "[null, false, true, 0, 1, -1, '', 'a', [], [1], {}, {'a': 1}].*::[@ || ()] == [true, 1, -1, 'a', [1], {'a': 1}]"},
+        
+        {"assertTrue": "[1, 2, [], false].*::max == []"},
+        {"assertTrue": "()::max == ()"},
+        
+        {"assertTrue": "[1, 2, [], false].*::min == false"},
+        {"assertTrue": "()::min == ()"},
+        
+        {"assertTrue": "(1, 2, 3)::sum == 6"},
+        {"assertTrue": "(1, -2, 3)::sum == 2"},
+        {"assertTrue": "()::sum == 0"},
+        {"assertError": "(1, 2, 3, null)::sum"},
+        {"assertError": "('a', 'b')::sum"},
+        
+        {"assertTrue": "(1, 2, 3)::avg == 2"},
+        {"assertTrue": "(2, -4, 8, 6)::avg == 3"},
+        {"assertTrue": "()::avg == 0"},
+        {"assertError": "null::avg == 0"},
+        
+        {"assertTrue": "(1, 2, 3)::count == 3"},
+        {"assertTrue": "(1, 2, (), 3, ())::count == 3"},
+        {"assertTrue": "()::count == 0"},
+        {"assertError": "(1, 2, 3, 1/0)::count"},
+        {"assertTrue": "(1, -4, 4, 0, 7)::count(@ > 0 ? true : @ == 0 ? () : false) == 3"}
+
+        ]
     }]
 }

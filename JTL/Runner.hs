@@ -14,7 +14,7 @@ import JTL.IR
 import qualified JTL.Context as C
 import qualified JTL.Value as V
 import JTL.Sequence
-import JTL.Utils (liftR, liftR2)
+import JTL.Utils (liftR, liftR2, minWith, maxWith)
 
 type Error = String
 type ContextSequence = Sequence Error C.Context
@@ -91,6 +91,8 @@ runContext (EUnOp op expr) = runValue expr >>= \v -> fmap C.fromValue `liftM` go
     go ONeg Nothing = return Nothing
     go ONeg _ = throwError "Expecting number"
 runContext (ECall "error" [expr]) = runContext expr >>= throwError . show
+runContext (ECall "key" []) = C.lookupKeyContext <$> asks E.getContext
+runContext (ECall "value" []) = Just <$> asks E.getContext
 runContext (ECall _ _) = throwError "Invalid function"
 runContext (EBinOp OAnd left right) = do
     x <- runContext left
@@ -142,15 +144,16 @@ runContexts (ETrans "members" src [expr]) = do
         _ -> castMaybeToBool x'
 runContexts (ETrans "first" src []) = truncateS 1 <$> runContexts src
 runContexts (ETrans "first" src [expr]) = maybeS <$> (runContexts src >>= findSM (`runBoolWith` expr))
-runContexts (ETrans "last" src []) = runFold1S (\x y -> return y) src
-runContexts (ETrans "last" src [expr]) = fmap maybeS $ runContexts src >>= (findSM (`runBoolWith` expr) . reverseS)
-runContexts (ETrans "count" src []) = liftM (singletonS . C.fromValue . length) $ runList src
-runContexts (ETrans "count" src [expr]) = liftM (singletonS . C.fromValue) $
-    runContexts src >>= foldSM (\x y -> runBoolWith y expr >>= \b -> return $ if b then x + 1 else x) (0 :: Int)
-runContexts (ETrans "min" src []) = runFold1S (\x y -> return $ if C.getValue y < C.getValue x then y else x) src
-runContexts (ETrans "max" src []) = runFold1S (\x y -> return $ if C.getValue y > C.getValue x then y else x) src
-runContexts (ETrans "sum" src []) = liftM (singletonS . C.fromValue) $
-    runContexts src >>= foldSM add (V.VNumber V.zero) . fmap C.getValue
+runContexts (ETrans "last" src []) = truncateS 1 . reverseS <$> runContexts src
+runContexts (ETrans "last" src [expr]) = maybeS <$> (runContexts src >>= findSM (`runBoolWith` expr) . reverseS)
+runContexts (ETrans "count" src []) = singletonS . C.fromValue <$>
+    (runContexts src >>= foldSM (\x _ -> return $ succ x) (0 :: Int))
+runContexts (ETrans "count" src [expr]) = singletonS . C.fromValue <$>
+    (runContexts src >>= foldSM (\x y -> runBoolWith y expr >>= \b -> return $ if b then x + 1 else x) (0 :: Int))
+runContexts (ETrans "min" src []) = runFold1Contexts (liftR2 $ minWith C.getValue) src
+runContexts (ETrans "max" src []) = runFold1Contexts (liftR2 $ maxWith C.getValue) src
+runContexts (ETrans "sum" src []) = singletonS . C.fromValue <$>
+    (runContexts src >>= foldSM add (V.VNumber V.zero) . fmap C.getValue)
 runContexts (ETrans "avg" src []) = do
     s <- runContexts src
     (sum, count) <- foldSM (\(sum, count) ctx -> add sum ctx >>= \sum' -> return (sum', count + 1))
@@ -220,20 +223,21 @@ runObjectMember (k, v) = runValue k >>= \k -> case k of
 runObjectMemberWith :: C.Context -> (Expr, Expr) -> Runner (Maybe (V.String, V.Value))
 runObjectMemberWith ctx = local (E.withContext ctx) . runObjectMember
 
-runFold1S :: (C.Context -> C.Context -> Runner C.Context) -> Expr -> Runner ContextSequence -- TODO poprawić
-runFold1S f e = runContexts e >>= fold1SM f >>= liftR maybeS
+runFold1Contexts :: (C.Context -> C.Context -> Runner C.Context) -> Expr -> Runner ContextSequence
+runFold1Contexts f e = runContexts e >>= fold1SM f >>= liftR maybeS
 
 castMaybeToBool :: Maybe V.Value -> Runner Bool
 castMaybeToBool Nothing = return False
 castMaybeToBool (Just v) = castToBool v
 
 castToBool :: V.Value -> Runner Bool
-castToBool V.VNull = return False
-castToBool (V.VBoolean b) = return $ V.fromBoolean b
-castToBool (V.VNumber n) = return $ n /= V.zero
-castToBool (V.VString s) = return $ s /= V.epsilon
-castToBool (V.VArray _) = throwError "Cannot convert array to boolean"
-castToBool (V.VObject _) = throwError "Cannot convert object to boolean"
+castToBool v = return $ case v of
+    V.VNull -> False
+    V.VBoolean b -> V.fromBoolean b
+    V.VNumber n -> n /= V.zero
+    V.VString s -> s /= V.epsilon
+    V.VArray a -> V.arraySize a /= 0
+    V.VObject o -> V.objectSize o /= 0
 
 castToString :: MonadError Error m => V.Value -> m V.String
 castToString V.VNull = return $ V.toString $ show V.VNull

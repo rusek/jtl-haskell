@@ -1,7 +1,8 @@
 {
 module JTL.Parser where
 
-import Text.Parsec (runParser)
+import Text.Parsec
+import Text.Parsec.Error
 import Text.Parsec.String (Parser)
 import JTL.Parsec (lexer)
 import JTL.Token
@@ -44,6 +45,8 @@ import qualified JTL.Value as V
     '>='         { TGreaterEqual }
     '=='         { TEqual }
     '!='         { TNotEqual }
+    '&&'         { TDoubleAmp }
+    '||'         { TDoubleBar }
     
     '?'          { TQuestMark }
     '='          { TAssign }
@@ -77,6 +80,8 @@ AndOr : AndOr AndOrOp Not { EBinOp $2 $1 $3 }
       | Not { $1 }
 
 AndOrOp : and { OAnd }
+        | '&&' { OAnd }
+        | '||' { OOr }
         | or  { OOr }
 
 Not : not Not { EUnOp ONot $2 }
@@ -160,7 +165,21 @@ parseError _ = fail "Parse error"
 
 parse :: String -> Either String Expr
 parse inp = case runParser parser () "" inp of
-    Left err -> Left $ show err
+    Left err -> Left $ showError err
     Right expr -> Right expr
 
+showError e = "Line " ++ show line ++ ", column " ++ show col ++ ": " ++ msg where
+    pos = errorPos e
+    line = sourceLine pos
+    col = sourceColumn pos
+    msgs = errorMessages e
+    msg = findMsg msgs $ findUnExpect msgs $ "Unknown error"
+
+    findMsg (Message msg:_) fb = msg
+    findMsg (_:xs) fb = findMsg xs fb
+    findMsg [] fb = fb
+    
+    findUnExpect (UnExpect msg:_) fb = "Unexpected " ++ msg
+    findUnExpect (_:xs) fb = findUnExpect xs fb
+    findUnExpect [] fb = fb
 }

@@ -4,6 +4,8 @@ module Main where
 
 import System.Console.Haskeline
 import System.Console.Haskeline.MonadException
+import System.Directory
+import System.FilePath
 import Control.Monad hiding (join)
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict hiding (join)
@@ -22,6 +24,7 @@ import Text.Parsec.String (Parser)
 import JTL.Parsec
 import qualified JTL.Parser as P
 import JTL.Utils (join)
+import Data.Char (isSpace)
 import Data.Maybe (fromMaybe)
 
 type Interpreter a = InputT (StateT E.Env IO) a
@@ -82,8 +85,18 @@ loadValue path act = liftIO (loadValueIO path) >>= \result -> case result of
     Left msg -> outputStrLn msg
     Right v -> act v
 
+fixPathIO :: FilePath -> IO FilePath
+fixPathIO s = case trim s of
+    "~" -> getHomeDirectory
+    '~':c:cs | isPathSeparator c -> liftM (</> cs) getHomeDirectory
+    cs -> return cs
+
+trim :: String -> String
+trim = let go = reverse . dropWhile isSpace in go . go
+
 main :: IO ()
-main = void $ runStateT (runInputT defaultSettings $ init >> loop) (E.fromDocument V.VNull) where
+main = void $ runStateT (runInputT sett $ init >> loop) (E.fromDocument V.VNull) where
+    sett = defaultSettings{historyFile = Just ".jtli-history"}
     init :: Interpreter ()
     init = liftIO getArgs >>= \args -> case args of
         [] -> return ()
@@ -96,7 +109,7 @@ main = void $ runStateT (runInputT defaultSettings $ init >> loop) (E.fromDocume
             Left e -> outputStrLn (show e) >> loop
             Right CQuit -> return ()
             Right CNone -> loop
-            Right (CLoad var path) -> loadValue path (\v -> case var of
+            Right (CLoad var path) -> liftIO (fixPathIO path) >>= \path -> loadValue path (\v -> case var of
                 Nothing -> put $ E.fromDocument v
                 Just (VNamed n) -> modify $ E.withNamedVar n $ C.fromValue v
                 Just (VIndexed i) -> modify $ E.withIndexedVar i $ C.fromValue v) >> loop
@@ -110,6 +123,19 @@ main = void $ runStateT (runInputT defaultSettings $ init >> loop) (E.fromDocume
             Right (CExplain e) -> parseExpr e (outputStrLn . show) >> loop
             Right (CRun w) -> do
                 evaluateExpr w $ \ctxs -> outputStrLn $ if null ctxs
-                    then "undefined"
-                    else join ", " $ map (show . C.getValue) ctxs
+                    then "\x1b[31mundefined\x1b[0m"
+                    else join ", " $ map (showValue . C.getValue) ctxs
                 loop
+
+data Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White deriving Enum
+
+withColor :: Color -> String -> String
+withColor c s = "\x1b[" ++ show (30 + fromEnum c) ++ "m" ++ s ++ "\x1b[0m"
+
+showValue :: V.Value -> String
+showValue (V.VArray a) = "[" ++ join ", " (map showValue $ V.fromArray a) ++ "]"
+showValue (V.VObject o) = "{" ++ join ", " (map showMember $ V.fromObject o) ++ "}" where
+    showMember (k, v) = showValue (V.VString k) ++ ": " ++ showValue v
+showValue (V.VNumber n) = withColor Yellow $ show n
+showValue (V.VString s) = withColor Green $ show s
+showValue v = withColor Red $ show v
