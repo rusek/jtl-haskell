@@ -114,20 +114,9 @@ runContext (EBinOp op left right) = do
     go OMod = moduloMaybe
 runContext (ECmpOp left rights) = runValue left >>= \x -> go x rights where
     go _ [] = return $ Just $ C.fromValue $ V.VBoolean V.true
-    go leftVal ((op, right):rights) = runValue right >>= \rightVal ->
-        if goOp op leftVal rightVal then go rightVal rights
+    go leftVal (CExpr op right:rights) = runValue right >>= \rightVal ->
+        if cmpMaybe op leftVal rightVal then go rightVal rights
         else return $ Just $ C.fromValue $ V.VBoolean V.false
-    goOp op = case op of
-        OEq -> goO True False (==)
-        ONe -> goO False True (/=)
-        OLt -> goO False False (<)
-        OLe -> goO True False (<=)
-        OGt -> goO False False (>)
-        OGe -> goO True False (>=)
-    goO fb2 fb1 op Nothing Nothing = fb2
-    goO fb2 fb1 op Nothing _ = fb1
-    goO fb2 fb1 op _ Nothing = fb1
-    goO fb2 fb1 op (Just x) (Just y) = x `op` y
 runContext e = runContexts e >>= takeSM 2 >>= \items -> case items of
     [] -> return Nothing
     [x] -> return $ Just x
@@ -246,6 +235,29 @@ castToString (V.VNumber n) = return $ V.toString $ show n
 castToString (V.VString s) = return s
 castToString (V.VArray _) = throwError "Cannot convert array to string"
 castToString (V.VObject _) = throwError "Cannot convert object to string"
+
+cmp :: CmpOp -> V.Value -> V.Value -> Bool
+cmp op = case op of
+    OEq -> (==)
+    ONe -> (/=)
+    OLt -> (<)
+    OLe -> (<=)
+    OGt -> (>)
+    OGe -> (>=)
+
+cmpMaybe :: CmpOp -> Maybe V.Value -> Maybe V.Value -> Bool
+cmpMaybe op Nothing Nothing = case op of
+    OEq -> True
+    OLe -> True
+    OGe -> True
+    _ -> False
+cmpMaybe op Nothing _ = case op of
+    ONe -> True
+    _ -> False
+cmpMaybe op _ Nothing = case op of
+    ONe -> True
+    _ -> False
+cmpMaybe op (Just l) (Just r) = cmp op l r
 
 add :: MonadError Error m => V.Value -> V.Value -> m V.Value
 add (V.VString x) (V.VString y) = return $ V.VString $ V.concat x y

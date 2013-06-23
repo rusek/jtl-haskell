@@ -90,8 +90,8 @@ Not : not Not { EUnOp ONot $2 }
 Cmp : Additive { $1 }
     | Additive Cmp1Rev { ECmpOp $1 $ reverse $2 }
 
-Cmp1Rev : Cmp1Rev CmpOp Additive { ($2, $3):$1 }
-        | CmpOp Additive { [($1, $2)] }
+Cmp1Rev : Cmp1Rev CmpOp Additive { CExpr $2 $3:$1 }
+        | CmpOp Additive { [CExpr $1 $2] }
 
 CmpOp : '==' { OEq }
       | '!=' { ONe }

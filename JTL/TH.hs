@@ -13,7 +13,6 @@ import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TS
 import Language.Haskell.TH.Quote as QQ
 
-
 runTH :: (V.ValueLike a, V.ValueLike b) => Expr -> [V.Value] -> a -> b
 runTH expr indexed doc = case evaluate expr env of
         Left msg -> error msg
@@ -33,20 +32,21 @@ maybeValue [ctx] = Just $ C.getValue ctx
 
 justValue [ctx] = C.getValue ctx
 
-freeIndexedVars (EBinOp _ left right) = freeIndexedVars left `S.union` freeIndexedVars right
-freeIndexedVars (EUnOp _ expr) = freeIndexedVars expr
-freeIndexedVars (ECmpOp expr rights) = freeIndexedVars expr `S.union` freeIndexedVarsL (map snd rights)
-freeIndexedVars (EVar (VIndexed i)) = S.singleton i
-freeIndexedVars EContext = S.empty
-freeIndexedVars EDocument = S.empty
-freeIndexedVars (ETrans _ src args) = freeIndexedVars src `S.union` freeIndexedVarsL args
-freeIndexedVars (ECall _ args) = freeIndexedVarsL args
-freeIndexedVars (EArray members) = freeIndexedVarsL members
-freeIndexedVars (EObject members) = S.unions $ map (\(k, v) -> S.union (freeIndexedVars k) (freeIndexedVars v)) members
-freeIndexedVars (EValue _) = S.empty
-freeIndexedVars (ELet (VIndexed i) e1 e2) = freeIndexedVars e1 `S.union` S.delete i (freeIndexedVars e2)
-freeIndexedVars (EIf e1 e2 e3) = freeIndexedVars e1 `S.union` freeIndexedVars e2 `S.union` freeIndexedVars e3
-freeIndexedVars (ESequence es) = freeIndexedVarsL es
+freeIndexedVars expr = case expr of
+    EBinOp _ left right -> freeIndexedVars left `S.union` freeIndexedVars right
+    EUnOp _ expr -> freeIndexedVars expr
+    ECmpOp qexpr cexprs -> freeIndexedVars qexpr `S.union` freeIndexedVarsL [qexpr | CExpr _ qexpr <- cexprs]
+    EVar (VIndexed i) -> S.singleton i
+    EContext -> S.empty
+    EDocument -> S.empty
+    ETrans _ src args -> freeIndexedVars src `S.union` freeIndexedVarsL args
+    ECall _ args -> freeIndexedVarsL args
+    EArray members -> freeIndexedVarsL members
+    EObject members -> S.unions $ map (\(k, v) -> S.union (freeIndexedVars k) (freeIndexedVars v)) members
+    EValue _ -> S.empty
+    ELet (VIndexed i) e1 e2 -> freeIndexedVars e1 `S.union` S.delete i (freeIndexedVars e2)
+    EIf e1 e2 e3 -> freeIndexedVars e1 `S.union` freeIndexedVars e2 `S.union` freeIndexedVars e3
+    ESequence es -> freeIndexedVarsL es
 
 freeIndexedVarsL xs = S.unions $ map freeIndexedVars xs
 

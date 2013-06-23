@@ -105,9 +105,10 @@ baseNumber :: Parser V.Number
 baseNumber = (negate <$ char '-' <|> pure id) *> unumber
 
 white :: Parser ()
-white = (space *> spaces) <|>
-        (str "/*" >> skipUntil (str "*/")) <|>
-        (str "//" >> skipUntil (eof <|> () <$ newline))
+white =
+    (space *> spaces) <|>
+    (str "/*" >> skipUntil (str "*/")) <|>
+    (str "//" >> skipUntil (eof <|> () <$ newline))
 
 baseWs :: Parser ()
 baseWs = skipMany $ oneOf "\x20\x09\x0A\x0D"
@@ -160,39 +161,41 @@ nameT = go <$> name where
     go n       = TIdent n
 
 symbolT :: Parser Token
-symbolT = TLessEqual    <$ str "<=" <|>
-          TGreaterEqual <$ str ">=" <|>
-          TEqual        <$ str "==" <|>
-          TNotEqual     <$ str "!=" <|>
-          TDoubleColon  <$ str "::" <|>
-          TDoubleBar    <$ str "||" <|>
-          TDoubleAmp    <$ str "&&" <|>
-          TPlus         <$ char '+' <|>
-          TMinus        <$ char '-' <|>
-          TStar         <$ char '*' <|>
-          TSlash        <$ char '/' <|>
-          TPercent      <$ char '%' <|>
-          TLess         <$ char '<' <|>
-          TGreater      <$ char '>' <|>
-          TExclMark     <$ char '!' <|>
-          TQuestMark    <$ char '?' <|>
-          TAssign       <$ char '=' <|>
-          TLeftParen    <$ char '(' <|>
-          TRightParen   <$ char ')' <|>
-          TLeftBrace    <$ char '{' <|>
-          TRightBrace   <$ char '}' <|>
-          TLeftBracket  <$ char '[' <|>
-          TRightBracket <$ char ']' <|>
-          TColon        <$ char ':' <|>
-          TComma        <$ char ',' <|>
-          TDot          <$ char '.'
+symbolT =
+    TLessEqual    <$ str "<=" <|>
+    TGreaterEqual <$ str ">=" <|>
+    TEqual        <$ str "==" <|>
+    TNotEqual     <$ str "!=" <|>
+    TDoubleColon  <$ str "::" <|>
+    TDoubleBar    <$ str "||" <|>
+    TDoubleAmp    <$ str "&&" <|>
+    TPlus         <$ char '+' <|>
+    TMinus        <$ char '-' <|>
+    TStar         <$ char '*' <|>
+    TSlash        <$ char '/' <|>
+    TPercent      <$ char '%' <|>
+    TLess         <$ char '<' <|>
+    TGreater      <$ char '>' <|>
+    TExclMark     <$ char '!' <|>
+    TQuestMark    <$ char '?' <|>
+    TAssign       <$ char '=' <|>
+    TLeftParen    <$ char '(' <|>
+    TRightParen   <$ char ')' <|>
+    TLeftBrace    <$ char '{' <|>
+    TRightBrace   <$ char '}' <|>
+    TLeftBracket  <$ char '[' <|>
+    TRightBracket <$ char ']' <|>
+    TColon        <$ char ':' <|>
+    TComma        <$ char ',' <|>
+    TDot          <$ char '.'
 
 token :: Parser Token
-token = TString <$> string <|>
-        TNumber <$> unumber <|>
-        nameT <|>
-        refT <|>
-        symbolT
+token =
+    TString <$> string <|>
+    TNumber <$> unumber <|>
+    nameT <|>
+    refT <|>
+    symbolT
 
 lexer :: (Token -> Parser a) -> Parser a
 lexer cont = white *> lexer cont <|> (token >>= cont) <|> (eof >> cont TEOF)
