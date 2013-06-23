@@ -102,7 +102,7 @@ instance Show Number where
     show (Number n) = let s = show (fromRational n :: Double) in case reverse s of
         '0':'.':s' -> reverse s'
         _ -> s
-    
+
 instance Show String where
     show (String s) = '"' : foldr go "\"" s where
         go '"' s = '\\':'"':s
@@ -114,7 +114,7 @@ instance Show String where
         go '\r' s = '\\':'r':s
         go '\t' s = '\\':'t':s
         go c s = let cc = fromEnum c in
-            if cc < 32 then '\\':'u':(intToDigit $ cc `shiftR` 1):(intToDigit $ cc .&. 0xF):s
+            if cc < 32 then '\\':'u':'0':'0':(intToDigit $ cc `shiftR` 4):(intToDigit $ cc .&. 0xF):s
             else c:s
 
 instance Show Array where
