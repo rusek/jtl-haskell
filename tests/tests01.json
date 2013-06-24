@@ -18,6 +18,23 @@
         ]
     },
     {
+        "label": "Logical tests",
+        "tests": [
+            {"assertTrue": "true and true"},
+            {"assertFalse": "true and false"},
+            {"assertTrue": "true && true"},
+            {"assertFalse": "false && true"},
+            {"assertTrue": "false or true"},
+            {"assertFalse": "false or false"},
+            {"assertTrue": "false || true"},
+            {"assertFalse": "false || false"},
+            {"assertTrue": "not false"},
+            {"assertFalse": "not not false"},
+            {"assertTrue": "!false"},
+            {"assertFalse": "!!false"}
+        ]
+    },
+    {
         "label": "String tests",
         "tests": [
             {"assertTrue": "'a' + 'b' == 'ab'"},

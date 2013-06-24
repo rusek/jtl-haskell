@@ -49,6 +49,7 @@ import qualified JTL.Value as V
     '||'         { TDoubleBar }
     
     '?'          { TQuestMark }
+    '!'          { TExclMark }
     '='          { TAssign }
     '.'          { TDot }
     ','          { TComma }
@@ -106,15 +107,16 @@ Additive : Additive AdditiveOp Multiplicative { EBinOp $2 $1 $3 }
 AdditiveOp : '+' { OAdd }
            | '-' { OSub }
 
-Multiplicative : Multiplicative MultiplicativeOp Neg { EBinOp $2 $1 $3 }
-               | Neg { $1 }
+Multiplicative : Multiplicative MultiplicativeOp Prefix { EBinOp $2 $1 $3 }
+               | Prefix { $1 }
 
 MultiplicativeOp : '*' { OMul }
                  | '/' { ODiv }
                  | '%' { OMod }
 
-Neg : '-' Neg { EUnOp ONeg $2 }
-    | Trans   { $1 }
+Prefix : '-' Prefix { EUnOp ONeg $2 }
+       | '!' Prefix { EUnOp ONot $2 }
+       | Trans   { $1 }
 
 Trans : Trans '.' Name { ETrans "members" $1 [EValue $ V.VString $ V.toString $3] }
       | Trans '.' '*' { ETrans "members" $1 [] }

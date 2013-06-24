@@ -86,13 +86,15 @@ runContext (EObject members) = mapM runObjectMember members >>= \vs ->
     return $ Just $ C.fromValue $ V.toObject $ catMaybes vs
 runContext (EUnOp op expr) = runValue expr >>= \v -> fmap C.fromValue `liftM` go op v where
     go :: UnOp -> Maybe V.Value -> Runner (Maybe V.Value)
-    go ONot v = (Just . V.VBoolean . V.toBoolean) `liftM` castMaybeToBool v
+    go ONot v = (Just . V.VBoolean . V.toBoolean . not) `liftM` castMaybeToBool v
     go ONeg (Just (V.VNumber n)) = return $ Just $ V.VNumber (-n)
     go ONeg Nothing = return Nothing
     go ONeg _ = throwError "Expecting number"
 runContext (ECall "error" [expr]) = runContext expr >>= throwError . show
 runContext (ECall "key" []) = C.lookupKeyContext <$> asks E.getContext
+runContext (ECall "key" [expr]) = join . fmap C.lookupKeyContext <$> runContext expr
 runContext (ECall "value" []) = Just <$> asks E.getContext
+runContext (ECall "value" [expr]) = runContext expr
 runContext (ECall _ _) = throwError "Invalid function"
 runContext (EBinOp OAnd left right) = do
     x <- runContext left
@@ -216,11 +218,13 @@ runFold1Contexts :: (C.Context -> C.Context -> Runner C.Context) -> Expr -> Runn
 runFold1Contexts f e = runContexts e >>= fold1SM f >>= liftR maybeS
 
 castMaybeToBool :: Maybe V.Value -> Runner Bool
-castMaybeToBool Nothing = return False
-castMaybeToBool (Just v) = castToBool v
+castMaybeToBool = return . toBoolMaybe
 
 castToBool :: V.Value -> Runner Bool
-castToBool v = return $ case v of
+castToBool = return . toBool
+
+toBool :: V.Value -> Bool
+toBool v = case v of
     V.VNull -> False
     V.VBoolean b -> V.fromBoolean b
     V.VNumber n -> n /= V.zero
@@ -228,13 +232,17 @@ castToBool v = return $ case v of
     V.VArray a -> V.arraySize a /= 0
     V.VObject o -> V.objectSize o /= 0
 
+toBoolMaybe :: Maybe V.Value -> Bool
+toBoolMaybe = maybe False toBool
+
 castToString :: MonadError Error m => V.Value -> m V.String
-castToString V.VNull = return $ V.toString $ show V.VNull
-castToString (V.VBoolean b) = return $ V.toString $ show b
-castToString (V.VNumber n) = return $ V.toString $ show n
-castToString (V.VString s) = return s
-castToString (V.VArray _) = throwError "Cannot convert array to string"
-castToString (V.VObject _) = throwError "Cannot convert object to string"
+castToString v = case v of
+    V.VNull -> return $ V.toString $ show V.VNull
+    V.VBoolean b -> return $ V.toString $ show b
+    V.VNumber n -> return $ V.toString $ show n
+    V.VString s -> return s
+    V.VArray _ -> throwError "Cannot convert array to string"
+    V.VObject _ -> throwError "Cannot convert object to string"
 
 cmp :: CmpOp -> V.Value -> V.Value -> Bool
 cmp op = case op of
