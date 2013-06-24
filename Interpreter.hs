@@ -31,6 +31,19 @@ type Interpreter a = InputT (StateT E.Env IO) a
 
 data Cmd = CLoad (Maybe Var) String | CSet (Maybe Var) String | CExplain String | CRun String | CQuit | CNone
 
+wordBreakChars :: String
+wordBreakChars = " \t\n\"\\'`@$><=;|&{("
+
+str :: String -> Parser String
+str = Text.Parsec.try . Text.Parsec.string
+
+word :: Parser String
+word = concat <$> many (squot <|> dquot <|> esc <|> chars) where
+    squot = char '\'' *> many (satisfy (/= '\'')) <* char '\''
+    dquot = char '"' *> many ('\\' <$ str "\\\\" <|> '"' <$ str "\\\"" <|> satisfy (/= '"')) <* char '"'
+    chars = many1 $ satisfy $ not . (`elem` wordBreakChars)
+    esc = return <$> (char '\\' *> anyChar)
+
 cmdSpec :: Parser Cmd
 cmdSpec = do
     n <- name
@@ -38,7 +51,7 @@ cmdSpec = do
         spaces *> return CQuit
     else if n == "l" || n == "load" then do
         v <- spaces *> (Just <$> (var <* spaces) <|> return Nothing)
-        path <- many anyChar
+        path <- word <* spaces <* eof
         return $ CLoad v path
     else if n == "e" || n == "explain" then
         CExplain <$> many anyChar
@@ -70,9 +83,7 @@ evaluateExpr src act = parseExpr src $ \expr -> get >>= \env -> case R.evaluate 
     Left msg -> outputStrLn msg
 
 loadValueIO :: String -> IO (Either String V.Value)
-loadValueIO path = withFile path ReadMode process `catch` \e ->
-    if isDoesNotExistError e then return $ Left "Could not open file"
-    else ioError e
+loadValueIO path = withFile path ReadMode process `catch` (return . Left . (show :: IOError -> String))
     where
         process h = do
         txt <- hGetContents h
@@ -123,7 +134,7 @@ main = void $ runStateT (runInputT sett $ init >> loop) (E.fromDocument V.VNull)
             Right (CExplain e) -> parseExpr e (outputStrLn . show) >> loop
             Right (CRun w) -> do
                 evaluateExpr w $ \ctxs -> outputStrLn $ if null ctxs
-                    then "\x1b[31mundefined\x1b[0m"
+                    then "undefined"
                     else join ", " $ map (showValue . C.getValue) ctxs
                 loop
 
