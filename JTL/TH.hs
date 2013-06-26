@@ -2,7 +2,7 @@ module JTL.TH where
 
 import Control.Monad (replicateM)
 import qualified Data.Set as S
-import JTL.IR ( Expr(..), Var(..) )
+import JTL.IR ( Expr(..), Var(..), CExpr(..) )
 import JTL.Parser
 import JTL.Runner
 import qualified JTL.Context as C
